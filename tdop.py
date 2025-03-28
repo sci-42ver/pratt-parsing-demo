@@ -37,16 +37,50 @@ class Token:
 
 
 #
-# Using the pattern here: http://effbot.org/zone/xml-scanner.htm
+# Using the pattern here: https://web.archive.org/web/20161202072939/http://effbot.org/zone/xml-scanner.htm (mainly based on xml-scanner-example-4.py for infix expression. xml-scanner-example-5/6 are for XML)
 #
 
-# NOTE: () and [] need to be on their own so (-1+2) works
-TOKEN_RE = re.compile("""
-\s* (?: (\d+) | (\w+) | ( [\-\+\*/%!~<>=&^|?:,]+ ) | ([\(\)\[\]]) )
+# 0. NOTE: () and [] need to be on their own so (-1+2) works
+# 1. triple quoted exp is string but not one comment 
+# 2. re.VERBOSE https://docs.python.org/3/library/re.html#re.VERBOSE
+# implies that we "separate logical sections" (i.e. \n newline) and "Whitespace within the pattern" are "ignored".
+TOKEN_RE = re.compile(r"""
+\s* 
+(?: 
+  # See the following about '",*"'. Here number must be firsted matched against "(\d+)".
+  (\d+)
+  | (\w+)
+  # | ( [\-\+\*/%!~<>=&^|?:,]+ ) 
+  # IGNORE Here I changed to only allow the string with duplicate same characters.
+  # -=,+= etc should be allowed.
+  # 1. %% https://stackoverflow.com/a/25901868/21294350
+  # 2. ~ is unary https://stackoverflow.com/questions/8305199/the-tilde-operator-in-python#comment10234779_8305199 Similarly ^ is binary XOR.
+  | ([\-\+\*/%!~<>=&^|?:]+) # only remove ",".
+  # | ((?:\-|\+|\*|/|%|<|>|=|&|\|)+| :=)
+  # !!, ?? are in ipython https://stackoverflow.com/q/70833723/21294350
+  # :: is used as 2 :s https://python-reference.readthedocs.io/en/latest/docs/brackets/slicing.html
+  | ([\(\)\[\]~^!?:,])
+  # match kwargs
+  # 0. Assume no weird format strings like "arg1 **arg2" for "arg1**arg2"
+  # 1. IGNORE: Here order of or elems doesn't imply their matching order.
+  # If this is put before some pat able to match ",*", then ",*arg" won't be splitted into "," and "*arg" because ,* will be always matched first. See https://docs.python.org/3/library/re.html#regular-expression-syntax
+  # > As the target string is scanned, REs separated by '|' are tried from left to right. When one pattern completely matches, that branch is accepted.
+  # > In other words, the '|' operator is never greedy.
+  | ((?<!\w)(?:\*|\*\*)\w+))
 """, re.VERBOSE)
+
+# TOKEN_RE.findall("""fact := lambda n, a,**kwargs,*args:
+# if n == 0
+# then 1
+# else n*fact(n-1)"""
+# )
+# Using the original, it won't match **kwargs but match ,** and kwargs...
+# Anyway here "," should not consume more.
 
 def Tokenize(s):
   for item in TOKEN_RE.findall(s):
+    # Also see https://docs.python.org/3/library/re.html#writing-a-tokenizer
+    # using named group.
     if item[0]:
       typ = 'number'
       val = int(item[0])
@@ -59,6 +93,9 @@ def Tokenize(s):
     elif item[3]:
       typ = item[3]
       val = item[3]
+    elif item[4]:
+      typ = item[4]
+      val = item[4]
     yield Token(typ, val, loc=(0, 0))
 
 
