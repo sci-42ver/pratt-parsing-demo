@@ -172,6 +172,6 @@ def main():
   TestComma(t_parse)
   TestErrors(p)
 
-
+# https://docs.python.org/3/library/__main__.html#what-is-the-top-level-code-environment
 if __name__ == '__main__':
   main()

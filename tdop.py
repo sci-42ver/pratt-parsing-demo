@@ -77,7 +77,11 @@ TOKEN_RE = re.compile(r"""
 # Using the original, it won't match **kwargs but match ,** and kwargs...
 # Anyway here "," should not consume more.
 
+# generator https://stackoverflow.com/a/45621089/21294350
+# https://stackoverflow.com/questions/50573100/using-next-on-generator-function#comment124667820_50573153 https://docs.python.org/3/glossary.html#term-generator
 def Tokenize(s):
+  # IMHO here we have no need for lazy evaluation since findall is not lazy.
+  # In Python we can use finditer and the wrap __next__ with the following operation.
   for item in TOKEN_RE.findall(s):
     # Also see https://docs.python.org/3/library/re.html#writing-a-tokenizer
     # using named group.
@@ -96,6 +100,7 @@ def Tokenize(s):
     elif item[4]:
       typ = item[4]
       val = item[4]
+    # loc is unused but it is useful for compiler etc to show where the error is etc.
     yield Token(typ, val, loc=(0, 0))
 
 
@@ -138,8 +143,11 @@ class LeftInfo(object):
   """Row for operator.
 
   In C++ this should be a big array.
+
+  Here it is one dict with val as class (actually like one one-dimensional array).
   """
   def __init__(self, led=None, lbp=0, rbp=0):
+    # None => false https://docs.python.org/3/library/stdtypes.html#truth-value-testing
     self.led = led or LeftError
     self.lbp = lbp
     self.rbp = rbp
@@ -172,6 +180,7 @@ class ParserSpec(object):
       if token not in self.left_lookup:
         self.left_lookup[token] = LeftInfo()  # error
 
+  # https://peps.python.org/pep-0008/#descriptive-naming-styles
   def _RegisterLed(self, lbp, rbp, led, tokens):
     for token in tokens:
       if token not in self.null_lookup:
@@ -263,5 +272,6 @@ class Parser(object):
     return node
 
   def Parse(self):
+    # get the 1st token
     self.Next()
     return self.ParseUntil(0)

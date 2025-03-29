@@ -40,6 +40,9 @@ def NullIncDec(p, token, bp):
   """ ++x or ++x[1] """
   right = p.ParseUntil(bp)
   if right.token.type not in ('name', 'get'):
+    # https://docs.python.org/3/library/stdtypes.html#str
+    # > If object does not have a __str__() method, then str() falls back to returning repr(object).
+    # https://docs.python.org/3/library/string.html#format-examples for %.
     raise tdop.ParseError("Can't assign to %r (%s)" % (right, right.token))
   return CompositeNode(token, [right])
 
@@ -49,7 +52,7 @@ def NullIncDec(p, token, bp):
 #
 
 def LeftIncDec(p, token, left, rbp):
-  """ For i++ and i--
+  """ For i++ and i-- (not in Python https://stackoverflow.com/a/1485854/21294350)
   """
   if left.token.type not in ('name', 'get'):
     raise tdop.ParseError("Can't assign to %r (%s)" % (left, left.token))
@@ -78,6 +81,7 @@ def LeftTernary(p, token, left, bp):
   # "The expression in the middle of the conditional operator (between ? and
   # :) is parsed as if parenthesized: its precedence relative to ?: is
   # ignored."
+  # See precedence_tests.c for why this is useful.
   true_expr = p.ParseUntil(0)
 
   p.Eat(':')
@@ -138,14 +142,16 @@ def MakeShellParserSpec():
 
   Compare the code below with this table of C operator precedence:
   http://en.cppreference.com/w/c/language/operator_precedence
+
+  It is same for bash https://www.gnu.org/software/bash/manual/bash.html#Shell-Arithmetic
   """
   spec = tdop.ParserSpec()
 
-  spec.Left(31, LeftIncDec, ['++', '--'])
+  spec.Left(31, LeftIncDec, ['++', '--']) # postfix
   spec.Left(31, LeftFuncCall, ['('])
   spec.Left(31, LeftIndex, ['['])
 
-  # 29 -- binds to everything except function call, indexing, postfix ops
+  # 29 -- binds to everything except function call, indexing, prefix ops
   spec.Null(29, NullIncDec, ['++', '--'])
 
   # Right associative: 2 ** 3 ** 2 == 2 ** (3 ** 2)
