@@ -31,6 +31,8 @@ def NullPrefixOp(p, token, bp):
 
   High precedence: logical negation, bitwise complement, etc.
     !x && y is (!x) && y, not !(x && y)
+  
+  Here we only consider expr due to "a POSIX-compatible shell *arithmetic* parser", so no need for return etc (raise is not in Shell, at least for bash).
   """
   r = p.ParseUntil(bp)
   return CompositeNode(token, [r])
@@ -52,7 +54,7 @@ def NullIncDec(p, token, bp):
 #
 
 def LeftIncDec(p, token, left, rbp):
-  """ For i++ and i-- (not in Python https://stackoverflow.com/a/1485854/21294350)
+  """ For i++ and i-- (not in Python https://stackoverflow.com/a/1485854/21294350 but in Shell/C)
   """
   if left.token.type not in ('name', 'get'):
     raise tdop.ParseError("Can't assign to %r (%s)" % (left, left.token))
@@ -65,7 +67,7 @@ def LeftIndex(p, token, left, unused_bp):
   # f[x] or f[x][y]
   if left.token.type not in ('name', 'get'):
     raise tdop.ParseError("%s can't be indexed" % left)
-  index = p.ParseUntil(0)
+  index = p.ParseUntil(0) # implicit parenthesis pair
   p.Eat("]")
 
   token.type = 'get'
@@ -107,8 +109,12 @@ def LeftComma(p, token, left, rbp):
   """ foo, bar, baz 
 
   Could be sequencing operator, or tuple without parens
+
+  tuple is inherent supported in Python. For bash, see https://stackoverflow.com/a/9713142/21294350 based on IFS.
   """
   r = p.ParseUntil(rbp)
+  # Due to using Left since Left-to-right, the above ParseUntil will stop at the next comma.
+  # So this will happen after having consumed one comma, e.g. (foo, bar), baz.
   if left.token.type == ',':  # Keep adding more children
     left.children.append(r)
     return left
@@ -152,13 +158,17 @@ def MakeShellParserSpec():
   spec.Left(31, LeftIndex, ['['])
 
   # 29 -- binds to everything except function call, indexing, prefix ops
+  # 0. Here all are Right-to-left (Notice "info bash" has no sizeof although opengroup standard shows that), but due to unary there is no ambiguity for bp comparison since no other operators will compete for grabbing that value https://stackoverflow.com/a/12963342/21294350.
+  # > With unary operators it would be more than surprising to group !!a as (!!)a, the language would also have to supply a meaning for the sub-expression !!
+  # So we don't need do something similar to **.
+  # This is also implied in Python https://docs.python.org/3/reference/expressions.html#operator-precedence for -x etc.
+  # 0.a. But obviously it needs bp to restrict what in the latter it can grab.
   spec.Null(29, NullIncDec, ['++', '--'])
+  spec.Null(29, NullPrefixOp, ['+', '!', '~', '-'])
 
   # Right associative: 2 ** 3 ** 2 == 2 ** (3 ** 2)
-  # Binds more strongly than negation.
-  spec.LeftRightAssoc(29, LeftBinaryOp, ['**'])
-
-  spec.Null(27, NullPrefixOp, ['+', '!', '~', '-'])
+  # Binds less strongly than negation. See `info bash` 
+  spec.LeftRightAssoc(27, LeftBinaryOp, ['**'])
 
   spec.Left(25, LeftBinaryOp, ['*', '/', '%'])
 
@@ -187,6 +197,7 @@ def MakeShellParserSpec():
   spec.Null(0, NullParen, ['('])  # for grouping
 
   # -1 precedence -- never used
+  # This means it won't have any children.
   spec.Null(-1, NullConstant, ['name', 'number'])
   spec.Null(-1, tdop.NullError, [')', ']', ':', 'eof'])
 
