@@ -19,7 +19,8 @@ def NullError(p, token, bp):
 
 
 def LeftError(p, token, left, rbp):
-  # Hm is this not called because of binding power?
+  # 0. Hm is this not called because of binding power?
+  # 0.a. I don't know what that meant. If we use led for one nud token carelessly, then this will be called. This is similar to when NullError will be called.
   raise ParseError("%s can't be used in infix position" % token)
 
 
@@ -50,23 +51,27 @@ TOKEN_RE = re.compile(r"""
   # See the following about '",*"'. Here number must be firsted matched against "(\d+)".
   (\d+)
   | (\w+)
-  # | ( [\-\+\*/%!~<>=&^|?:,]+ ) 
+  # match kwargs
+  # 0. Assume no weird format strings like "arg1**arg2" for "arg1 **arg2".
+  # For this (?<!\w) will reject it to recognize "**arg2".
+  # 1. IGNORE this line: Here order of or elems doesn't imply their matching order.
+  # If this is put after some pat able to match ",*", then ",*arg" won't be splitted into ",*" and "arg" because ",*" will be always matched first. See https://docs.python.org/3/library/re.html#regular-expression-syntax
+  # > As the target string is scanned, REs separated by '|' are tried from left to right. When one pattern completely matches, that branch is accepted.
+  # > In other words, the '|' operator is never greedy.
+  | ((?<!\w)(?:\*|\*\*)\w+)
+
+  # | ( [\-\+\*/%!~<>=&^|?:,]+ )
   # IGNORE Here I changed to only allow the string with duplicate same characters.
   # -=,+= etc should be allowed.
   # 1. %% https://stackoverflow.com/a/25901868/21294350
   # 2. ~ is unary https://stackoverflow.com/questions/8305199/the-tilde-operator-in-python#comment10234779_8305199 Similarly ^ is binary XOR.
   | ([\-\+\*/%!~<>=&^|?:]+) # only remove ",".
+
   # | ((?:\-|\+|\*|/|%|<|>|=|&|\|)+| :=)
   # !!, ?? are in ipython https://stackoverflow.com/q/70833723/21294350
   # :: is used as 2 :s https://python-reference.readthedocs.io/en/latest/docs/brackets/slicing.html
   | ([\(\)\[\]~^!?:,])
-  # match kwargs
-  # 0. Assume no weird format strings like "arg1 **arg2" for "arg1**arg2"
-  # 1. IGNORE: Here order of or elems doesn't imply their matching order.
-  # If this is put before some pat able to match ",*", then ",*arg" won't be splitted into "," and "*arg" because ,* will be always matched first. See https://docs.python.org/3/library/re.html#regular-expression-syntax
-  # > As the target string is scanned, REs separated by '|' are tried from left to right. When one pattern completely matches, that branch is accepted.
-  # > In other words, the '|' operator is never greedy.
-  | ((?<!\w)(?:\*|\*\*)\w+))
+  )
 """, re.VERBOSE)
 
 # TOKEN_RE.findall("""fact := lambda n, a,**kwargs,*args:
@@ -181,6 +186,7 @@ class ParserSpec(object):
         self.left_lookup[token] = LeftInfo()  # error
 
   # https://peps.python.org/pep-0008/#descriptive-naming-styles
+  # So this is private
   def _RegisterLed(self, lbp, rbp, led, tokens):
     for token in tokens:
       if token not in self.null_lookup:
@@ -237,7 +243,9 @@ class Parser(object):
 
   def Eat(self, val):
     """Assert the value of the current token, then move to the next token."""
-    if val and not self.AtToken(val):
+    # see SDF_exercises/chapter_5/5_7_related_python_behavior/default_arg.py
+    # no need for "val and ...".
+    if not self.AtToken(val):
       raise ParseError('expected %s, got %s' % (val, self.token))
     self.Next()
 
@@ -274,4 +282,5 @@ class Parser(object):
   def Parse(self):
     # get the 1st token
     self.Next()
+    # All led tokens has lbp greater than 0.
     return self.ParseUntil(0)

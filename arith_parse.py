@@ -196,9 +196,10 @@ def MakeShellParserSpec():
   # 0 precedence -- doesn't bind until )
   spec.Null(0, NullParen, ['('])  # for grouping
 
-  # -1 precedence -- never used
+  # -1 precedence -- never used (actually it can be any number since it is not used by NullConstant etc and later)
   # This means it won't have any children.
-  spec.Null(-1, NullConstant, ['name', 'number'])
+  spec.Null(-1, NullConstant, ['name', 'number']) # consider nud number etc.
+  # avoid unmatched paren etc.
   spec.Null(-1, tdop.NullError, [')', ']', ':', 'eof'])
 
   return spec
