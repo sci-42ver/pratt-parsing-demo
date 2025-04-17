@@ -112,6 +112,7 @@ def LeftComma(p, token, left, rbp):
 
   tuple is inherent supported in Python. For bash, see https://stackoverflow.com/a/9713142/21294350 based on IFS.
   """
+  # Here bash doesn't support trailing comma
   r = p.ParseUntil(rbp)
   # Due to using Left since Left-to-right, the above ParseUntil will stop at the next comma.
   # So this will happen after having consumed one comma, e.g. (foo, bar), baz.
@@ -131,12 +132,20 @@ def LeftFuncCall(p, token, left, unused_bp):
   # f(x) or f[i](x)
   if left.token.type not in ('name', 'get'):
     raise tdop.ParseError("%s can't be called" % left)
+  
   while not p.AtToken(')'):
-    # We don't want to grab the comma, e.g. it is NOT a sequence operator.  So
-    # set the precedence to 5.
-    children.append(p.ParseUntil(COMMA_PREC))
-    if p.AtToken(','):
-      p.Next()
+    # # We don't want to grab the comma, e.g. it is NOT a sequence operator.  So
+    # # set the precedence to 5.
+    # children.append(p.ParseUntil(COMMA_PREC))
+    # # Here implicitly allow trailing comma which is unsupported by C (You can check online with godbolt).
+    # if p.AtToken(','):
+    #   p.Next()
+
+    ## IMHO the above is same as (although not supporting trailing comma by only running "p.Next()")
+    comma_list = p.ParseUntil(0) # NullParen rbp
+    # children = children + (comma_list.children if hasattr(comma_list, 'children') else [comma_list])
+    children = children + (comma_list.children if comma_list.token.type == ',' else [comma_list])
+
   p.Eat(")")
   token.type = 'call'
   return CompositeNode(token, children)
@@ -193,13 +202,16 @@ def MakeShellParserSpec():
 
   spec.Left(COMMA_PREC, LeftComma, [','])
 
-  # 0 precedence -- doesn't bind until )
+  # 0. 0 precedence -- doesn't bind until )
+  # 0.a. Although this is at the top of the precedence order list *implicitly* (see the standard https://stackoverflow.com/a/79544622/21294350)
+  # ( should not binds anything from other op's like + etc.
   spec.Null(0, NullParen, ['('])  # for grouping
 
   # -1 precedence -- never used (actually it can be any number since it is not used by NullConstant etc and later)
   # This means it won't have any children.
   spec.Null(-1, NullConstant, ['name', 'number']) # consider nud number etc.
-  # avoid unmatched paren etc.
+  # 0. avoid unmatched paren etc.
+  # 1. Due to -1 < all rbp's, led won't be called. So only care about nud's.
   spec.Null(-1, tdop.NullError, [')', ']', ':', 'eof'])
 
   return spec

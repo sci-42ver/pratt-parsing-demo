@@ -132,6 +132,7 @@ def TestFuncCalls(t_parse):
   t_parse('print("x")', '(call print x)')
   t_parse('min(255,n*2)', '(call min 255 (* n 2))')
   t_parse('c = pal[i*8]', '(= c (get pal (* i 8)))')
+  # t_parse('trailing_comma(1,)')
 
 
 def TestErrors(p):

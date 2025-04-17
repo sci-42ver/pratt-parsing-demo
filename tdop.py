@@ -58,7 +58,11 @@ TOKEN_RE = re.compile(r"""
   # If this is put after some pat able to match ",*", then ",*arg" won't be splitted into ",*" and "arg" because ",*" will be always matched first. See https://docs.python.org/3/library/re.html#regular-expression-syntax
   # > As the target string is scanned, REs separated by '|' are tried from left to right. When one pattern completely matches, that branch is accepted.
   # > In other words, the '|' operator is never greedy.
-  | ((?<!\w)(?:\*|\*\*)\w+)
+  # 2. https://docs.python.org/3/reference/lexical_analysis.html#identifiers
+  # identifier doesn't start with decimal.
+  # | ((?<!\w)(?:\*|\*\*)[a-zA-Z]\w*)
+  # 3. Here we don't allow space before, otherwise x(1,2) *j can't be differentiated from "x(1,2), *j".
+  | ((?<=,)(?:\*|\*\*)[a-zA-Z]\w*)
 
   # | ( [\-\+\*/%!~<>=&^|?:,]+ )
   # IGNORE Here I changed to only allow the string with duplicate same characters.
